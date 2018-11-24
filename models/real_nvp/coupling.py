@@ -23,7 +23,6 @@ class Coupling(RealNVPLayer):
         super(Coupling, self).__init__()
 
         # Save mask info
-        self.cached_masks = {}  # Maps device -> cached mask
         self.mask_type = mask_type
         self.reverse_mask = reverse_mask
 

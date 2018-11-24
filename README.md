@@ -31,14 +31,10 @@ and running on an NVIDIA Titan Xp card.
 
 ## Results
 
-### Epoch 0
+### Epochs 0, 10, 20
 
-![Samples at Epoch 0](/samples/epoch_0.png?raw=true "Samples at Epoch 0")
+![Samples at Epochs 0, 10, 20](/samples/real_nvp_samples_0_10_20.png?raw=true "Samples at Epochs 0, 10, 20")
 
-### Epoch 10
+### Epochs 30, 40, 50
 
-![Samples at Epoch 10](/samples/epoch_10.png?raw=true "Samples at Epoch 10")
-
-### Epoch 20
-
-![Samples at Epoch 20](/samples/epoch_20.png?raw=true "Samples at Epoch 20")
+![Samples at Epochs 30, 40, 50](/samples/real_nvp_samples_30_40_50.png?raw=true "Samples at Epochs 30, 40, 50")
