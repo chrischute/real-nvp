@@ -26,7 +26,7 @@ experiments described in Section 4.1 of the paper.
   4. At the end of each epoch, samples from the model will be saved to
   `samples/epoch_N.png`, where `N` is the epoch number.
  
-One epoch takes about 12 minutes when using the default arguments
+One epoch takes about 4 minutes when using the default arguments
 and running on an NVIDIA Titan Xp card.
 
 ## Results

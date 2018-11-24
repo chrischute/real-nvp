@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from enum import IntEnum
+from models import ResNet
 from models.real_nvp.real_nvp_layer import RealNVPLayer
-from util import checkerboard_mask, channel_wise_mask, WNConv2d
+from util import checkerboard_mask, channel_wise_mask
 
 
 class MaskType(IntEnum):
@@ -26,48 +26,49 @@ class Coupling(RealNVPLayer):
         self.mask_type = mask_type
         self.reverse_mask = reverse_mask
 
-        # Build neural networks for scale and translate
-        self.scale = ScaleTranslateNetwork(in_channels, mid_channels, use_tanh=True,
-                                           num_blocks=8, kernel_size=3, padding=1)
-        self.translate = ScaleTranslateNetwork(in_channels, mid_channels, use_tanh=False,
-                                               num_blocks=8, kernel_size=3, padding=1)
+        # Build neural network for scale and translate
+        self.scale_translate = ResNet(in_channels, mid_channels, 2 * in_channels,
+                                      num_blocks=8, kernel_size=3, padding=1)
+
+        # Learnable scale for s
+        self.scale = nn.utils.weight_norm(Scalar())
 
     def forward(self, x, sldj, z):
-        # Get mask
-        b = self._get_mask(x)
-
-        # Get scale and translate factors
-        x_b = x * b
-        s = self.scale(x_b, b)
-        s_exp = s.exp()
-        if torch.isnan(s_exp).any():
-            raise RuntimeError('Scale factor has NaN entries')
-        t = self.translate(x_b, b)
-
-        # Scale and translate
-        y = x_b + (1 - b) * (x * s_exp + t)
-
-        # Add log-determinant of the Jacobian
-        sldj += s.view(s.size(0), -1).sum(-1)
+        y, sldj = self._flow(x, sldj, forward=True)
 
         return y, sldj, z
 
     def backward(self, y, z):
-        # Get mask
-        b = self._get_mask(y)
-
-        # Get scale and translate factors
-        y_b = y * b
-        s = self.scale(y_b, b)
-        s_exp = s.mul(-1).exp()
-        if torch.isnan(s_exp).any():
-            raise RuntimeError('Scale factor has NaN entries')
-        t = self.translate(y_b, b)
-
-        # Scale and translate
-        x = y_b + s_exp * ((1 - b) * y - t)
+        x, _ = self._flow(y, forward=False)
 
         return x, z
+
+    def _flow(self, x, sldj=None, forward=True):
+        # Get scale and translate factors
+        b = self._get_mask(x)
+        x_b = x * b
+        st = self.scale_translate(x_b, b)
+        s, t = st.chunk(2, dim=1)
+        s = self.scale(torch.tanh(s))
+        s = s * (1 - b)
+        t = t * (1 - b)
+
+        # Scale and translate
+        if forward:
+            exp_s = s.exp()
+            if torch.isnan(exp_s).any():
+                raise RuntimeError('Scale factor has NaN entries')
+            x = x_b + (1 - b) * (x * exp_s + t)
+
+            # Add log-determinant of the Jacobian
+            sldj += s.view(s.size(0), -1).sum(-1)
+        else:
+            exp_neg_s = s.mul(-1).exp()
+            if torch.isnan(exp_neg_s).any():
+                raise RuntimeError('Scale factor has NaN entries')
+            x = x_b + exp_neg_s * ((1 - b) * x - t)
+
+        return x, sldj
 
     def _get_mask(self, x):
         if self.mask_type == MaskType.CHECKERBOARD:
@@ -78,53 +79,6 @@ class Coupling(RealNVPLayer):
             raise ValueError('Mask type must be Coupling.checkerboard or Coupling.channel_wise')
 
         return mask
-
-
-class ScaleTranslateNetwork(nn.Module):
-    """Neural network for learning scale and translate factors. Based on ResNet.
-
-    Args:
-        in_channels (int): Number of channels in the input.
-        mid_channels (int): Number of channels in the intermediate layers.
-        use_tanh (bool): Whether to use tanh output head (True for s, False for t).
-        num_blocks (int): Number of residual blocks in the network.
-        kernel_size (int): Side length of each filter in convolutional layers.
-    """
-    def __init__(self, in_channels, mid_channels, use_tanh, num_blocks, kernel_size, padding):
-        super(ScaleTranslateNetwork, self).__init__()
-
-        self.in_conv = nn.Sequential(nn.BatchNorm2d(in_channels),
-                                     WNConv2d(in_channels, mid_channels, kernel_size, padding),
-                                     nn.BatchNorm2d(mid_channels),
-                                     nn.ReLU())
-
-        self.blocks = nn.ModuleList([
-            nn.Sequential(WNConv2d(mid_channels, mid_channels, kernel_size, padding),
-                          nn.BatchNorm2d(mid_channels),
-                          nn.ReLU(),
-                          WNConv2d(mid_channels, mid_channels, kernel_size, padding),
-                          nn.BatchNorm2d(mid_channels))
-            for _ in range(num_blocks)])
-
-        self.use_tanh = use_tanh
-        self.out_conv = WNConv2d(mid_channels, in_channels, kernel_size=1, padding=0)
-        self.out_scale = nn.utils.weight_norm(Scalar()) if use_tanh else None
-
-    def forward(self, x, b):
-        x = self.in_conv(x)
-
-        for residual in self.blocks:
-            x = x + residual(x)
-            x = F.relu(x)
-
-        x = self.out_conv(x)
-        x = x * (1 - b)
-
-        if self.use_tanh:
-            x = torch.tanh(x)
-            x = self.out_scale(x)
-
-        return x
 
 
 class Scalar(nn.Module):
