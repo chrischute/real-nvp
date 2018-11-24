@@ -1,6 +1,6 @@
-"""Script for training RealNVP on CIFAR-10.
+"""Train Real NVP on CIFAR-10.
 
-Adapted from: https://github.com/kuangliu/pytorch-cifar/
+Train script adapted from: https://github.com/kuangliu/pytorch-cifar/
 """
 import argparse
 import numpy as np
@@ -61,7 +61,7 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(epoch, net, trainloader, device, optimizer, loss_fn)
-        test(epoch, net, testloader, device, loss_fn, args.max_samples)
+        test(epoch, net, testloader, device, loss_fn, args.num_samples)
 
 
 def train(epoch, net, trainloader, device, optimizer, loss_fn):
@@ -97,7 +97,7 @@ def sample(net, batch_size, device):
     return x
 
 
-def test(epoch, net, testloader, device, loss_fn, max_samples):
+def test(epoch, net, testloader, device, loss_fn, num_samples):
     global best_loss
     net.eval()
     loss_meter = util.AverageMeter()
@@ -125,9 +125,9 @@ def test(epoch, net, testloader, device, loss_fn, max_samples):
         best_loss = loss_meter.avg
 
     # Save samples and data
-    images = sample(net, max_samples, device)
+    images = sample(net, num_samples, device)
     os.makedirs('samples', exist_ok=True)
-    images_concat = torchvision.utils.make_grid(images, nrow=int(max_samples ** 0.5), padding=2, pad_value=255)
+    images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
     torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))
 
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
-    parser.add_argument('--max_samples', default=32, type=int, help='Max number of samples at test time')
+    parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
     parser.add_argument('--resume', '-r', action='store_true', help='Resume from checkpoint')
     parser.add_argument('--weight_decay', default=5e-5, type=float,
