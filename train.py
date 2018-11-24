@@ -134,12 +134,12 @@ def test(epoch, net, testloader, device, loss_fn, max_samples):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on CIFAR-10')
 
-    parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
+    parser.add_argument('--batch_size', default=32, type=int, help='Batch size')
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
-    parser.add_argument('--max_samples', default=64, type=int, help='Max number of samples at test time')
-    parser.add_argument('--num_workers', default=4, type=int, help='Number of data loader threads')
+    parser.add_argument('--max_samples', default=32, type=int, help='Max number of samples at test time')
+    parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
     parser.add_argument('--resume', '-r', action='store_true', help='Resume from checkpoint')
     parser.add_argument('--weight_decay', default=5e-5, type=float,
                         help='L2 regularization (only applied to the weight norm scale factors)')
