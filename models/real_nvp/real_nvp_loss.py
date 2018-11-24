@@ -17,7 +17,7 @@ class RealNVPLoss(nn.Module):
 
     def forward(self, z, sldj):
         log_prob = self.log_prob_x(z, sldj, self.cardinality)
-        loss = -log_prob.sum()
+        loss = -log_prob.mean()
 
         return loss
 

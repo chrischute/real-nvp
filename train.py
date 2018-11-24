@@ -74,13 +74,12 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn):
             optimizer.zero_grad()
             z, sldj = net(x)
             loss = loss_fn(z, sldj)
-            loss_meter.update(loss.item())
+            loss_meter.update(loss.item(), x.size(0))
             loss.backward()
             optimizer.step()
 
-            bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()))
-            progress_bar.set_postfix(loss=loss_meter.avg,
-                                     bpd=bits_per_dim)
+            bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()[1:]))
+            progress_bar.set_postfix(loss=loss_meter.avg, bpd=bits_per_dim)
             progress_bar.update(x.size(0))
 
 
@@ -108,10 +107,9 @@ def test(epoch, net, testloader, device, loss_fn, max_samples):
                 x = x.to(device)
                 z, sldj = net(x)
                 loss = loss_fn(z, sldj)
-                loss_meter.update(loss.item())
-                bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()))
-                progress_bar.set_postfix(loss=loss_meter.avg,
-                                         bpd=bits_per_dim)
+                loss_meter.update(loss.item(), x.size(0))
+                bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()[1:]))
+                progress_bar.set_postfix(loss=loss_meter.avg, bpd=bits_per_dim)
                 progress_bar.update(x.size(0))
 
     # Save checkpoint
