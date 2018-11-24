@@ -136,8 +136,8 @@ def test(epoch, net, testloader, device, loss_fn, max_samples):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on CIFAR-10')
 
-    parser.add_argument('--batch_size', default=192, type=int, help='Batch size')
-    parser.add_argument('--gpu_ids', default='[0,1,2]', type=eval, help='IDs of GPUs to use')
+    parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
+    parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--max_samples', default=64, type=int, help='Max number of samples at test time')
