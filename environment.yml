@@ -1,0 +1,14 @@
+name: rnvp
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - numpy=1.15.3
+  - pillow=5.3.0
+  - pip=10.0.1
+  - python=3.7.1
+  - tqdm=4.26.0
+  - pytorch=0.4.1
+  - torchvision=0.2.1
+  - pip:
+    - torch==0.4.1
