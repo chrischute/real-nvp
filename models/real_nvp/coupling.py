@@ -27,8 +27,8 @@ class Coupling(RealNVPLayer):
         self.reverse_mask = reverse_mask
 
         # Build neural network for scale and translate
-        self.scale_translate = ResNet(in_channels, mid_channels, 2 * in_channels,
-                                      num_blocks=8, kernel_size=3, padding=1)
+        self.st_net = ResNet(in_channels, mid_channels, 2 * in_channels,
+                             num_blocks=8, kernel_size=3, padding=1)
 
         # Learnable scale for s
         self.scale = nn.utils.weight_norm(Scalar())
@@ -47,7 +47,7 @@ class Coupling(RealNVPLayer):
         # Get scale and translate factors
         b = self._get_mask(x)
         x_b = x * b
-        st = self.scale_translate(x_b, b)
+        st = self.st_net(x_b, b)
         s, t = st.chunk(2, dim=1)
         s = self.scale(torch.tanh(s))
         s = s * (1 - b)
