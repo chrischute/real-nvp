@@ -39,6 +39,7 @@ class RealNVP(nn.Module):
                        Coupling(in_channels, mid_channels, MaskType.CHANNEL_WISE, reverse_mask=False),
                        Splitting(scale)]
             in_channels //= 2
+            mid_channels *= 2
 
         # Get the last layer
         layers += [Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=False),

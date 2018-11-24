@@ -19,16 +19,18 @@ class Coupling(RealNVPLayer):
         mask_type (MaskType): One of `MaskType.CHECKERBOARD` or `MaskType.CHANNEL_WISE`.
         reverse_mask (bool): Whether to reverse the mask. Useful for alternating masks.
     """
-    def __init__(self, in_channels, out_channels, mask_type, reverse_mask):
+    def __init__(self, in_channels, mid_channels, mask_type, reverse_mask):
         super(Coupling, self).__init__()
 
         # Save mask info
         self.mask_type = mask_type
         self.reverse_mask = reverse_mask
 
-        # Build neural network for scale and translate
-        self.scale_translate = ScaleTranslateNetwork(in_channels, out_channels,
-                                                     num_blocks=8, kernel_size=3, padding=1)
+        # Build neural networks for scale and translate
+        self.scale = ScaleTranslateNetwork(in_channels, mid_channels, use_tanh=True,
+                                           num_blocks=8, kernel_size=3, padding=1)
+        self.translate = ScaleTranslateNetwork(in_channels, mid_channels, use_tanh=False,
+                                               num_blocks=8, kernel_size=3, padding=1)
 
     def forward(self, x, sldj, z):
         # Get mask
@@ -36,10 +38,11 @@ class Coupling(RealNVPLayer):
 
         # Get scale and translate factors
         x_b = x * b
-        s, t = self.scale_translate(x_b, b)
+        s = self.scale(x_b, b)
         s_exp = s.exp()
         if torch.isnan(s_exp).any():
             raise RuntimeError('Scale factor has NaN entries')
+        t = self.translate(x_b, b)
 
         # Scale and translate
         y = x_b + (1 - b) * (x * s_exp + t)
@@ -55,11 +58,11 @@ class Coupling(RealNVPLayer):
 
         # Get scale and translate factors
         y_b = y * b
-        s, t = self.scale_translate(y_b, b)
+        s = self.scale(y_b, b)
         s_exp = s.mul(-1).exp()
-
         if torch.isnan(s_exp).any():
             raise RuntimeError('Scale factor has NaN entries')
+        t = self.translate(y_b, b)
 
         # Scale and translate
         x = y_b + s_exp * ((1 - b) * y - t)
@@ -83,10 +86,11 @@ class ScaleTranslateNetwork(nn.Module):
     Args:
         in_channels (int): Number of channels in the input.
         mid_channels (int): Number of channels in the intermediate layers.
+        use_tanh (bool): Whether to use tanh output head (True for s, False for t).
         num_blocks (int): Number of residual blocks in the network.
         kernel_size (int): Side length of each filter in convolutional layers.
     """
-    def __init__(self, in_channels, mid_channels, num_blocks, kernel_size, padding):
+    def __init__(self, in_channels, mid_channels, use_tanh, num_blocks, kernel_size, padding):
         super(ScaleTranslateNetwork, self).__init__()
 
         self.in_conv = nn.Sequential(nn.BatchNorm2d(in_channels),
@@ -102,8 +106,9 @@ class ScaleTranslateNetwork(nn.Module):
                           nn.BatchNorm2d(mid_channels))
             for _ in range(num_blocks)])
 
-        self.out_conv = WNConv2d(mid_channels, in_channels * 2, kernel_size=1, padding=0)
-        self.out_scale = nn.utils.weight_norm(Scalar())
+        self.use_tanh = use_tanh
+        self.out_conv = WNConv2d(mid_channels, in_channels, kernel_size=1, padding=0)
+        self.out_scale = nn.utils.weight_norm(Scalar()) if use_tanh else None
 
     def forward(self, x, b):
         x = self.in_conv(x)
@@ -113,14 +118,13 @@ class ScaleTranslateNetwork(nn.Module):
             x = F.relu(x)
 
         x = self.out_conv(x)
-        x = torch.tanh(x)
-        x = self.out_scale(x)
+        x = x * (1 - b)
 
-        s, t = x.chunk(2, dim=1)
-        s = s * (1 - b)
-        t = t * (1 - b)
+        if self.use_tanh:
+            x = torch.tanh(x)
+            x = self.out_scale(x)
 
-        return s, t
+        return x
 
 
 class Scalar(nn.Module):
