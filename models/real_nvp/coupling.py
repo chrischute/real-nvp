@@ -76,7 +76,7 @@ class Coupling(RealNVPLayer):
         elif self.mask_type == MaskType.CHANNEL_WISE:
             mask = channel_wise_mask(x.size(1), self.reverse_mask, device=x.device)
         else:
-            raise ValueError('Mask type must be Coupling.checkerboard or Coupling.channel_wise')
+            raise ValueError('Mask type must be MaskType.CHECKERBOARD or MaskType.CHANNEL_WISE')
 
         return mask
 

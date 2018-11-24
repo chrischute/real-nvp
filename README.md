@@ -34,35 +34,53 @@ and running on an NVIDIA Titan Xp card.
 ### Epoch 0
 
 ![Samples at Epoch 0](/samples/epoch_0.png?raw=true "Samples at Epoch 0")
-*Train bits per dimension:* 5.35
-*Valid bits per dimension:* 4.54
+
+**Bits per Dimension:**
+
+  * Train: 5.35
+  * Valid: 4.54
 
 ### Epoch 10
 
 ![Samples at Epoch 10](/samples/epoch_10.png?raw=true "Samples at Epoch 10")
-*Train bits per dimension:* 3.81
-*Valid bits per dimension:* 3.78
+
+**Bits per Dimension:**
+
+  * Train: 3.81
+  * Valid: 3.78
 
 ### Epoch 20
 
 ![Samples at Epoch 20](/samples/epoch_20.png?raw=true "Samples at Epoch 20")
-*Train bits per dimension:* 3.69
-*Valid bits per dimension:* 3.78
+
+**Bits per Dimension:**
+
+  * Train: 3.69
+  * Valid: 3.78
 
 ### Epoch 30
 
 ![Samples at Epoch 30](/samples/epoch_30.png?raw=true "Samples at Epoch 30")
-*Train bits per dimension:* 3.63
-*Valid bits per dimension:* 3.72
+
+**Bits per Dimension:**
+
+  * Train: 3.63
+  * Valid: 3.72
 
 ### Epoch 40
 
 ![Samples at Epoch 40](/samples/epoch_40.png?raw=true "Samples at Epoch 40")
-*Train bits per dimension:* 3.60
-*Valid bits per dimension:* 3.77
+
+**Bits per Dimension:**
+
+  * Train: 3.60
+  * Valid: 3.77
 
 ### Epoch 50
 
 ![Samples at Epoch 50](/samples/epoch_50.png?raw=true "Samples at Epoch 50")
-*Train bits per dimension:* 3.61
-*Valid bits per dimension:* 3.70
+
+**Bits per Dimension:**
+
+  * Train: 3.61
+  * Valid: 3.70

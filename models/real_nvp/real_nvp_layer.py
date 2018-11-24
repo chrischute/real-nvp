@@ -18,7 +18,7 @@ class RealNVPLayer(nn.Module):
             sldj (tensor): Updated sum of log determinants of Jacobians.
             z (tensor): Updated latent variables.
         """
-        raise NotImplementedError('Subclass of BaseLayer must implement forward.')
+        raise NotImplementedError('Subclass of RealNVPLayer must implement forward.')
 
     def backward(self, y, z):
         """Backward pass of a RealNVP layer.
@@ -31,4 +31,4 @@ class RealNVPLayer(nn.Module):
             x (tensor): Input features.
             z (tensor): Input latent variables.
         """
-        raise NotImplementedError('Subclass of BaseLayer must implement backward.')
+        raise NotImplementedError('Subclass of RealNVPLayer must implement backward.')
