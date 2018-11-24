@@ -26,15 +26,51 @@ experiments described in Section 4.1 of the paper.
   4. At the end of each epoch, samples from the model will be saved to
   `samples/epoch_N.png`, where `N` is the epoch number.
  
-One epoch takes about 4 min, 15 sec when using the default arguments
+One epoch takes about 12 minutes when using the default arguments
 and running on an NVIDIA Titan Xp card.
 
 ## Results
 
-### Epochs 0, 10, 20
+### Epoch 0
 
-![Samples at Epochs 0, 10, 20](/samples/real_nvp_samples_0_10_20.png?raw=true "Samples at Epochs 0, 10, 20")
+![Samples at Epoch 0](/samples/epoch_0.png?raw=true "Samples at Epoch 0")
 
-### Epochs 30, 40, 50
+### Epoch 10
 
-![Samples at Epochs 30, 40, 50](/samples/real_nvp_samples_30_40_50.png?raw=true "Samples at Epochs 30, 40, 50")
+![Samples at Epoch 10](/samples/epoch_10.png?raw=true "Samples at Epoch 10")
+
+### Epoch 20
+
+![Samples at Epoch 20](/samples/epoch_20.png?raw=true "Samples at Epoch 20")
+
+### Epoch 30
+
+![Samples at Epoch 30](/samples/epoch_30.png?raw=true "Samples at Epoch 30")
+
+### Epoch 40
+
+![Samples at Epoch 40](/samples/epoch_40.png?raw=true "Samples at Epoch 40")
+
+### Epoch 50
+
+![Samples at Epoch 50](/samples/epoch_50.png?raw=true "Samples at Epoch 50")
+
+### Epoch 60
+
+![Samples at Epoch 60](/samples/epoch_60.png?raw=true "Samples at Epoch 60")
+
+### Epoch 70
+
+![Samples at Epoch 70](/samples/epoch_70.png?raw=true "Samples at Epoch 70")
+
+### Epoch 80
+
+![Samples at Epoch 80](/samples/epoch_80.png?raw=true "Samples at Epoch 80")
+
+### Epoch 90
+
+![Samples at Epoch 90](/samples/epoch_90.png?raw=true "Samples at Epoch 90")
+
+### Epoch 100
+
+![Samples at Epoch 100](/samples/epoch_100.png?raw=true "Samples at Epoch 100")
