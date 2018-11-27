@@ -12,7 +12,7 @@ class ResidualBlock(nn.Module):
         self.in_norm = nn.BatchNorm2d(in_channels)
         self.in_conv = WNConv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
 
-        self.out_norm = nn.BatchNorm2d(in_channels)
+        self.out_norm = nn.BatchNorm2d(out_channels)
         self.out_conv = WNConv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=True)
 
     def forward(self, x):

@@ -18,8 +18,10 @@ class RealNVP(nn.Module):
         num_scales (int): Number of scales in the RealNVP model.
         in_channels (int): Number of channels in the input.
         mid_channels (int): Number of channels in the intermediate layers.
+        num_blocks (int): Number of residual blocks in the s and t network of
+        `Coupling` layers.
     """
-    def __init__(self, num_scales=2, in_channels=3, mid_channels=64):
+    def __init__(self, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8):
         super(RealNVP, self).__init__()
         self.alpha = 1e-5
 
@@ -28,31 +30,29 @@ class RealNVP(nn.Module):
 
         # Get inner layers
         layers = []
-        for scale in range(num_scales - 1):
-            layers += [Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=False),
-                       Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=True),
-                       Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=False),
-                       Squeezing()]
-            in_channels *= 4
-            layers += [Coupling(in_channels, mid_channels, MaskType.CHANNEL_WISE, reverse_mask=False),
-                       Coupling(in_channels, mid_channels, MaskType.CHANNEL_WISE, reverse_mask=True),
-                       Coupling(in_channels, mid_channels, MaskType.CHANNEL_WISE, reverse_mask=False),
-                       Splitting(scale)]
-            in_channels //= 2
-            mid_channels *= 2
+        for scale in range(num_scales):
+            layers += [Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False),
+                       Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True),
+                       Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False)]
 
-        # Get the last layer
-        layers += [Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=False),
-                   Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=True),
-                   Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=False),
-                   Coupling(in_channels, mid_channels, MaskType.CHECKERBOARD, reverse_mask=True),
-                   Splitting(num_scales - 1)]
+            if scale < num_scales - 1:
+                in_channels *= 4   # Account for the squeeze
+                mid_channels *= 2  # When squeezing, double the number of hidden-layer features in s and t
+                layers += [Squeezing(),
+                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False),
+                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=True),
+                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False)]
+            else:
+                layers += [Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True)]
+
+            layers += [Splitting(scale)]
+            in_channels //= 2  # Account for the split
 
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
         if x.min() < 0 or x.max() > 1:
-            raise ValueError('Expected 0 < x < 1, got x with min/max {}/{}'.format(x.min(), x.max()))
+            raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'.format(x.min(), x.max()))
 
         # Dequantize the input image
         # See https://arxiv.org/abs/1511.01844, Section 3.1
