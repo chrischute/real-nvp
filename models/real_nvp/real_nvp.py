@@ -51,8 +51,9 @@ class RealNVP(nn.Module):
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
-        if x.min() < 0 or x.max() > 1:
-            raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'.format(x.min(), x.max()))
+        if x.min() < -1 or x.max() > 1:
+            raise ValueError('Expected x in [-1, 1], got x with min/max {}/{}'
+                             .format(x.min(), x.max()))
 
         # Dequantize the input image
         # See https://arxiv.org/abs/1511.01844, Section 3.1
