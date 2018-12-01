@@ -16,10 +16,13 @@ class Coupling(RealNVPLayer):
     """Coupling layer in RealNVP.
 
     Args:
+        in_channels (int): Number of channels in the input.
+        mid_channels (int): Number of channels in the `s` and `t` network.
+        num_blocks (int): Number of residual blocks in the `s` and `t` network.
         mask_type (MaskType): One of `MaskType.CHECKERBOARD` or `MaskType.CHANNEL_WISE`.
         reverse_mask (bool): Whether to reverse the mask. Useful for alternating masks.
     """
-    def __init__(self, in_channels, mid_channels, mask_type, reverse_mask):
+    def __init__(self, in_channels, mid_channels, num_blocks, mask_type, reverse_mask):
         super(Coupling, self).__init__()
 
         # Save mask info
@@ -28,7 +31,7 @@ class Coupling(RealNVPLayer):
 
         # Build neural network for scale and translate
         self.st_net = ResNet(in_channels, mid_channels, 2 * in_channels,
-                             num_blocks=8, kernel_size=3, padding=1)
+                             num_blocks=num_blocks, kernel_size=3, padding=1)
 
         # Learnable scale for s
         self.scale = nn.utils.weight_norm(Scalar())
