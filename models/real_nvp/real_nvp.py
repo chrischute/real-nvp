@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from models.real_nvp.coupling import Coupling, MaskType
 from models.real_nvp.splitting import Splitting
@@ -23,7 +24,6 @@ class RealNVP(nn.Module):
     """
     def __init__(self, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8):
         super(RealNVP, self).__init__()
-        self.alpha = 1e-5
 
         # Save final number of channels for sampling
         self.z_channels = 4 ** (num_scales - 1) * in_channels
@@ -60,10 +60,14 @@ class RealNVP(nn.Module):
 
         # Model density of logits, rather than y itself
         # See https://arxiv.org/abs/1605.08803, Section 4.1
-        y = self.alpha * 0.5 + (1 - self.alpha) * y
-        sldj = -(y.log() + (1 - y).log())
-        sldj = sldj.view(sldj.size(0), -1).sum(-1)
-        y = y.log() - (1 - y).log()
+        c = torch.tensor([0.9], dtype=torch.float32, device=x.device)
+        y = (2 * y - 1) * c    # [-0.9, 0.9]
+        y = (y + 1) / 2        # [0.05, 0.95]
+        y = y.log() - (1. - y).log()
+
+        # Initialize sum of log-determinants of Jacobians
+        ldj = F.softplus(y) + F.softplus(-y) - F.softplus((1. - c).log() - c.log())
+        sldj = ldj.view(ldj.size(0), -1).sum(-1)
 
         # Apply forward flows
         z = None
@@ -78,8 +82,9 @@ class RealNVP(nn.Module):
         # Reshape z to match dimensions of final latent space
         if z.size(2) != z.size(3):
             raise ValueError('Expected z with height = width, got shape {}'.format(z.size()))
-        side_length = int((z.size(1) * z.size(2) * z.size(3) // self.z_channels) ** 0.5)
-        z = z.view(-1, self.z_channels, side_length, side_length)
+        if z.size(1) != self.z_channels:
+            side_length = int((z.size(1) * z.size(2) * z.size(3) // self.z_channels) ** 0.5)
+            z = z.view(-1, self.z_channels, side_length, side_length)
 
         # Apply inverse flows
         y = None
