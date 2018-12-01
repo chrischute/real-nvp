@@ -55,7 +55,7 @@ def main(args):
         best_loss = checkpoint['test_loss']
         start_epoch = checkpoint['epoch']
 
-    loss_fn = RealNVPLoss(cardinality=256)
+    loss_fn = RealNVPLoss()
     param_groups = util.get_param_groups(net, args.weight_decay, norm_suffix='weight_g')
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
@@ -78,8 +78,8 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn):
             loss.backward()
             optimizer.step()
 
-            bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()[1:]))
-            progress_bar.set_postfix(loss=loss_meter.avg, bpd=bits_per_dim)
+            progress_bar.set_postfix(loss=loss_meter.avg,
+                                     bpd=util.bits_per_dim(x, loss_meter.avg))
             progress_bar.update(x.size(0))
 
 
@@ -109,8 +109,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
                 z, sldj = net(x)
                 loss = loss_fn(z, sldj)
                 loss_meter.update(loss.item(), x.size(0))
-                bits_per_dim = loss_meter.avg / (np.log(2.) * np.prod(x.size()[1:]))
-                progress_bar.set_postfix(loss=loss_meter.avg, bpd=bits_per_dim)
+                progress_bar.set_postfix(loss=loss_meter.avg,
+                                         bpd=util.bits_per_dim(x, loss_meter.avg))
                 progress_bar.update(x.size(0))
 
     # Save checkpoint
