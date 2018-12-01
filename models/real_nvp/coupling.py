@@ -37,16 +37,16 @@ class Coupling(RealNVPLayer):
         self.scale = nn.utils.weight_norm(Scalar())
 
     def forward(self, x, sldj, z):
-        y, sldj = self._flow(x, sldj, forward=True)
+        y, sldj = self._flow(x, sldj, reverse=False)
 
         return y, sldj, z
 
     def backward(self, y, z):
-        x, _ = self._flow(y, forward=False)
+        x, _ = self._flow(y, reverse=True)
 
         return x, z
 
-    def _flow(self, x, sldj=None, forward=True):
+    def _flow(self, x, sldj=None, reverse=True):
         # Get scale and translate factors
         b = self._get_mask(x)
         x_b = x * b
@@ -57,7 +57,12 @@ class Coupling(RealNVPLayer):
         t = t * (1 - b)
 
         # Scale and translate
-        if forward:
+        if reverse:
+            exp_neg_s = s.mul(-1).exp()
+            if torch.isnan(exp_neg_s).any():
+                raise RuntimeError('Scale factor has NaN entries')
+            x = x_b + exp_neg_s * ((1 - b) * x - t)
+        else:
             exp_s = s.exp()
             if torch.isnan(exp_s).any():
                 raise RuntimeError('Scale factor has NaN entries')
@@ -65,11 +70,6 @@ class Coupling(RealNVPLayer):
 
             # Add log-determinant of the Jacobian
             sldj += s.view(s.size(0), -1).sum(-1)
-        else:
-            exp_neg_s = s.mul(-1).exp()
-            if torch.isnan(exp_neg_s).any():
-                raise RuntimeError('Scale factor has NaN entries')
-            x = x_b + exp_neg_s * ((1 - b) * x - t)
 
         return x, sldj
 

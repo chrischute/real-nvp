@@ -5,7 +5,7 @@ from util import WNConv2d
 
 
 class ResidualBlock(nn.Module):
-    """Standard (non-bottleneck) residual block with weight norm."""
+    """ResNet basic block with weight norm."""
     def __init__(self, in_channels, out_channels):
         super(ResidualBlock, self).__init__()
 

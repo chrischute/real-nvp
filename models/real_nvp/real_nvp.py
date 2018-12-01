@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from models.real_nvp.coupling import Coupling, MaskType
 from models.real_nvp.splitting import Splitting
 from models.real_nvp.squeezing import Squeezing
+from util import depth_to_space, space_to_depth
 
 
 class RealNVP(nn.Module):
@@ -27,7 +28,7 @@ class RealNVP(nn.Module):
         # Register data_constraint to pre-process images, not learnable
         self.register_buffer('data_constraint', torch.tensor([0.9], dtype=torch.float32))
 
-        # Save final number of channels for sampling
+        self.x_channels = in_channels
         self.z_channels = 4 ** (num_scales - 1) * in_channels
 
         # Get inner layers
@@ -58,9 +59,8 @@ class RealNVP(nn.Module):
             z = x
             if z.size(2) != z.size(3):
                 raise ValueError('Expected z with height = width, got shape {}'.format(z.size()))
-            if z.size(1) != self.z_channels:
-                side_length = int((z.size(1) * z.size(2) * z.size(3) // self.z_channels) ** 0.5)
-                z = z.view(-1, self.z_channels, side_length, side_length)
+            while z.size(1) < self.z_channels:
+                z = space_to_depth(z, 2)
 
             # Apply inverse flows
             y = None
@@ -85,6 +85,10 @@ class RealNVP(nn.Module):
                 y, sldj, z = layer.forward(y, sldj, z)
 
             z = torch.cat((z, y), dim=1)
+
+            # Reshape z to match dimensions of input
+            while z.size(1) > self.x_channels:
+                z = depth_to_space(z, 2)
 
             return z, sldj
 
