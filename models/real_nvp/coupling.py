@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from enum import IntEnum
-from models import ResNet
+from models.resnet import ResNet
 from models.real_nvp.real_nvp_layer import RealNVPLayer
 from util import checkerboard_mask, channel_wise_mask
 
