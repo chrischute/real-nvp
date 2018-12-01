@@ -3,7 +3,6 @@
 Train script adapted from: https://github.com/kuangliu/pytorch-cifar/
 """
 import argparse
-import numpy as np
 import os
 import torch
 import torch.optim as optim
@@ -60,11 +59,11 @@ def main(args):
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
-        train(epoch, net, trainloader, device, optimizer, loss_fn)
+        train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm)
         test(epoch, net, testloader, device, loss_fn, args.num_samples)
 
 
-def train(epoch, net, trainloader, device, optimizer, loss_fn):
+def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
     print('\nEpoch: %d' % epoch)
     net.train()
     loss_meter = util.AverageMeter()
@@ -76,6 +75,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn):
             loss = loss_fn(z, sldj)
             loss_meter.update(loss.item(), x.size(0))
             loss.backward()
+            util.clip_grad_norm(optimizer, max_grad_norm)
             optimizer.step()
 
             progress_bar.set_postfix(loss=loss_meter.avg,
@@ -139,6 +139,7 @@ if __name__ == '__main__':
     parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
+    parser.add_argument('--max_grad_norm', type=float, default=100., help='Max gradient norm for clipping')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
