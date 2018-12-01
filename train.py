@@ -93,6 +93,7 @@ def sample(net, batch_size, device):
     """
     z = torch.randn((batch_size, 3, 32, 32), dtype=torch.float32, device=device)
     x, _ = net(z, reverse=True)
+    x = torch.sigmoid(x)
 
     return x
 

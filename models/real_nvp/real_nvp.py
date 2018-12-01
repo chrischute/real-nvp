@@ -67,7 +67,7 @@ class RealNVP(nn.Module):
             for layer in reversed(self.layers):
                 y, z = layer.backward(y, z)
 
-            x = torch.sigmoid(y)
+            x = y
 
             return x, None
         else:
