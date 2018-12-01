@@ -24,7 +24,8 @@ class RealNVP(nn.Module):
     """
     def __init__(self, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8):
         super(RealNVP, self).__init__()
-        self.alpha = 0.05
+        # Register data_constraint to pre-process images, not learnable
+        self.register_buffer('data_constraint', torch.tensor([0.9], dtype=torch.float32))
 
         # Save final number of channels for sampling
         self.z_channels = 4 ** (num_scales - 1) * in_channels
@@ -51,50 +52,63 @@ class RealNVP(nn.Module):
 
         self.layers = nn.ModuleList(layers)
 
-    def forward(self, x):
-        # Expect inputs in [0, 1]
-        if x.min() < 0 or x.max() > 1:
-            raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'
-                             .format(x.min(), x.max()))
+    def forward(self, x, reverse=False):
+        if reverse:
+            # Reshape z to match dimensions of final latent space
+            z = x
+            if z.size(2) != z.size(3):
+                raise ValueError('Expected z with height = width, got shape {}'.format(z.size()))
+            if z.size(1) != self.z_channels:
+                side_length = int((z.size(1) * z.size(2) * z.size(3) // self.z_channels) ** 0.5)
+                z = z.view(-1, self.z_channels, side_length, side_length)
 
-        # Dequantize the input image
-        # See https://arxiv.org/abs/1511.01844, Section 3.1
+            # Apply inverse flows
+            y = None
+            for layer in reversed(self.layers):
+                y, z = layer.backward(y, z)
+
+            x = torch.sigmoid(y)
+
+            return x, None
+        else:
+            # Expect inputs in [0, 1]
+            if x.min() < 0 or x.max() > 1:
+                raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'
+                                 .format(x.min(), x.max()))
+
+            # Dequantize and convert to logits
+            y, sldj = self.pre_process(x)
+
+            # Apply forward flows
+            z = None
+            for layer in self.layers:
+                y, sldj, z = layer.forward(y, sldj, z)
+
+            z = torch.cat((z, y), dim=1)
+
+            return z, sldj
+
+    def pre_process(self, x):
+        """Dequantize the input image `x` and convert to logits.
+
+        Args:
+            x (torch.Tensor): Input image.
+
+        Returns:
+            y (torch.Tensor): Dequantized logits of `x`.
+
+        See Also:
+            - Dequantization: https://arxiv.org/abs/1511.01844, Section 3.1
+            - Modeling logits: https://arxiv.org/abs/1605.08803, Section 4.1
+        """
         y = (x * 255. + torch.rand_like(x)) / 256.
-
-        # Model density of logits, rather than y itself
-        # See https://arxiv.org/abs/1605.08803, Section 4.1
-        c = torch.tensor([1. - 2 * self.alpha], dtype=torch.float32, device=x.device)
-        y = (2 * y - 1) * c    # [-0.9, 0.9]
-        y = (y + 1) / 2        # [0.05, 0.95]
+        y = (2 * y - 1) * self.data_constraint
+        y = (y + 1) / 2
         y = y.log() - (1. - y).log()
 
         # Initialize sum of log-determinants of Jacobians
-        ldj = F.softplus(y) + F.softplus(-y) - F.softplus((1. - c).log() - c.log())
+        ldj = F.softplus(y) + F.softplus(-y) \
+            - F.softplus((1. - self.data_constraint).log() - self.data_constraint.log())
         sldj = ldj.view(ldj.size(0), -1).sum(-1)
 
-        # Apply forward flows
-        z = None
-        for layer in self.layers:
-            y, sldj, z = layer.forward(y, sldj, z)
-
-        z = torch.cat((z, y), dim=1)
-
-        return z, sldj
-
-    def backward(self, z):
-        # Reshape z to match dimensions of final latent space
-        if z.size(2) != z.size(3):
-            raise ValueError('Expected z with height = width, got shape {}'.format(z.size()))
-        if z.size(1) != self.z_channels:
-            side_length = int((z.size(1) * z.size(2) * z.size(3) // self.z_channels) ** 0.5)
-            z = z.view(-1, self.z_channels, side_length, side_length)
-
-        # Apply inverse flows
-        y = None
-        for layer in reversed(self.layers):
-            y, z = layer.backward(y, z)
-
-        # Convert from logits to normalized pixel values in (0, 1)
-        x = torch.sigmoid(y)
-
-        return x
+        return y, sldj

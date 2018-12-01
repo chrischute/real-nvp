@@ -72,7 +72,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn):
         for x, _ in trainloader:
             x = x.to(device)
             optimizer.zero_grad()
-            z, sldj = net(x)
+            z, sldj = net(x, reverse=False)
             loss = loss_fn(z, sldj)
             loss_meter.update(loss.item(), x.size(0))
             loss.backward()
@@ -92,7 +92,7 @@ def sample(net, batch_size, device):
         device (torch.device): Device to use.
     """
     z = torch.randn((batch_size, 3, 32, 32), dtype=torch.float32, device=device)
-    x = net.module.backward(z)
+    x = net(z, reverse=True)
 
     return x
 
