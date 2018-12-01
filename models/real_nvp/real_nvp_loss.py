@@ -12,7 +12,8 @@ class RealNVPLoss(nn.Module):
         super(RealNVPLoss, self).__init__()
 
     def forward(self, z, sldj):
-        prior_ll = -0.5 * ((z ** 2).view(z.size(0), -1).sum(-1) + np.log(2 * np.pi))
+        prior_ll = -0.5 * (z ** 2 + np.log(2 * np.pi))
+        prior_ll = prior_ll.view(z.size(0), -1).sum(-1)
         ll = prior_ll + sldj
         loss = -ll.mean()
 
