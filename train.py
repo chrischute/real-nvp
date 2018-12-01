@@ -39,11 +39,11 @@ def main(args):
 
     # Model
     print('Building model..')
-    net = RealNVP(num_scales=2, in_channels=3, mid_channels=64)
+    net = RealNVP(num_scales=2, in_channels=3, mid_channels=64, num_blocks=8)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
-        cudnn.benchmark = True
+        cudnn.benchmark = args.benchmark
 
     if args.resume:
         # Load checkpoint.
@@ -135,6 +135,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on CIFAR-10')
 
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
+    parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
     parser.add_argument('--lr', default=1e-3, type=float, help='Learning rate')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
