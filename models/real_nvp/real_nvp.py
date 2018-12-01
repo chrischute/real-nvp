@@ -24,6 +24,7 @@ class RealNVP(nn.Module):
     """
     def __init__(self, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8):
         super(RealNVP, self).__init__()
+        self.alpha = 0.05
 
         # Save final number of channels for sampling
         self.z_channels = 4 ** (num_scales - 1) * in_channels
@@ -51,8 +52,9 @@ class RealNVP(nn.Module):
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
-        if x.min() < -1 or x.max() > 1:
-            raise ValueError('Expected x in [-1, 1], got x with min/max {}/{}'
+        # Expect inputs in [0, 1]
+        if x.min() < 0 or x.max() > 1:
+            raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'
                              .format(x.min(), x.max()))
 
         # Dequantize the input image
@@ -61,7 +63,7 @@ class RealNVP(nn.Module):
 
         # Model density of logits, rather than y itself
         # See https://arxiv.org/abs/1605.08803, Section 4.1
-        c = torch.tensor([0.9], dtype=torch.float32, device=x.device)
+        c = torch.tensor([1. - 2 * self.alpha], dtype=torch.float32, device=x.device)
         y = (2 * y - 1) * c    # [-0.9, 0.9]
         y = (y + 1) / 2        # [0.05, 0.95]
         y = y.log() - (1. - y).log()
