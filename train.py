@@ -92,7 +92,7 @@ def sample(net, batch_size, device):
         device (torch.device): Device to use.
     """
     z = torch.randn((batch_size, 3, 32, 32), dtype=torch.float32, device=device)
-    x = net(z, reverse=True)
+    x, _ = net(z, reverse=True)
 
     return x
 
