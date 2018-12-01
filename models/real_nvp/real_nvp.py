@@ -110,7 +110,7 @@ class RealNVP(nn.Module):
         y = (y + 1) / 2
         y = y.log() - (1. - y).log()
 
-        # Initialize sum of log-determinants of Jacobians
+        # Save log-determinant of Jacobian of initial transform
         ldj = F.softplus(y) + F.softplus(-y) \
             - F.softplus((1. - self.data_constraint).log() - self.data_constraint.log())
         sldj = ldj.view(ldj.size(0), -1).sum(-1)

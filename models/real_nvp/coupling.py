@@ -58,10 +58,10 @@ class Coupling(RealNVPLayer):
 
         # Scale and translate
         if reverse:
-            exp_neg_s = s.mul(-1).exp()
-            if torch.isnan(exp_neg_s).any():
+            inv_exp_s = s.mul(-1).exp()
+            if torch.isnan(inv_exp_s).any():
                 raise RuntimeError('Scale factor has NaN entries')
-            x = x_b + exp_neg_s * ((1 - b) * x - t)
+            x = x_b + inv_exp_s * ((1 - b) * x - t)
         else:
             exp_s = s.exp()
             if torch.isnan(exp_s).any():

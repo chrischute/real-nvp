@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -17,8 +18,6 @@ class ResNet(nn.Module):
     """
     def __init__(self, in_channels, mid_channels, out_channels, num_blocks, kernel_size, padding):
         super(ResNet, self).__init__()
-
-        self.in_norm = nn.BatchNorm2d(in_channels)
         self.in_conv = WNConv2d(in_channels, mid_channels, kernel_size, padding, bias=True)
         self.in_skip = WNConv2d(mid_channels, mid_channels, kernel_size=1, padding=0, bias=True)
 
@@ -31,8 +30,6 @@ class ResNet(nn.Module):
         self.out_conv = WNConv2d(mid_channels, out_channels, kernel_size=1, padding=0, bias=True)
 
     def forward(self, x, b):
-        x = self.in_norm(x)
-        x = F.relu(x)
         x = self.in_conv(x)
         x_skip = self.in_skip(x)
 
