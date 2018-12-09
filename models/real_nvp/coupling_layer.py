@@ -11,7 +11,7 @@ class MaskType(IntEnum):
     CHANNEL_WISE = 1
 
 
-class Coupling(nn.Module):
+class CouplingLayer(nn.Module):
     """Coupling layer in RealNVP.
 
     Args:
@@ -22,7 +22,7 @@ class Coupling(nn.Module):
         reverse_mask (bool): Whether to reverse the mask. Useful for alternating masks.
     """
     def __init__(self, in_channels, mid_channels, num_blocks, mask_type, reverse_mask):
-        super(Coupling, self).__init__()
+        super(CouplingLayer, self).__init__()
 
         # Save mask info
         self.mask_type = mask_type

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.real_nvp.coupling import Coupling, MaskType
+from models.real_nvp.coupling_layer import CouplingLayer, MaskType
 from util import squeeze_2x2
 
 
@@ -26,7 +26,7 @@ class RealNVP(nn.Module):
         # Register data_constraint to pre-process images, not learnable
         self.register_buffer('data_constraint', torch.tensor([0.9], dtype=torch.float32))
 
-        self.flows = _RealNVPBuilder(0, num_scales, in_channels, mid_channels, num_blocks)
+        self.flows = _RealNVP(0, num_scales, in_channels, mid_channels, num_blocks)
 
     def forward(self, x, reverse=False):
         sldj = None
@@ -69,7 +69,7 @@ class RealNVP(nn.Module):
         return y, sldj
 
 
-class _RealNVPBuilder(nn.Module):
+class _RealNVP(nn.Module):
     """Recursive builder for a `RealNVP` model.
 
     Each `_RealNVPBuilder` corresponds to a single scale in `RealNVP`,
@@ -84,26 +84,26 @@ class _RealNVPBuilder(nn.Module):
             `Coupling` layers.
     """
     def __init__(self, scale_idx, num_scales, in_channels, mid_channels, num_blocks):
-        super(_RealNVPBuilder, self).__init__()
+        super(_RealNVP, self).__init__()
 
         self.is_last_block = scale_idx == num_scales - 1
 
         self.in_couplings = nn.ModuleList([
-            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False),
-            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True),
-            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False)
+            CouplingLayer(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False),
+            CouplingLayer(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True),
+            CouplingLayer(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False)
         ])
 
         if self.is_last_block:
             self.in_couplings.append(
-                Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True))
+                CouplingLayer(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True))
         else:
             self.out_couplings = nn.ModuleList([
-                Coupling(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False),
-                Coupling(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=True),
-                Coupling(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False)
+                CouplingLayer(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False),
+                CouplingLayer(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=True),
+                CouplingLayer(4 * in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False)
             ])
-            self.next_block = _RealNVPBuilder(scale_idx + 1, num_scales, 2 * in_channels, 2 * mid_channels, num_blocks)
+            self.next_block = _RealNVP(scale_idx + 1, num_scales, 2 * in_channels, 2 * mid_channels, num_blocks)
 
     def forward(self, x, sldj, reverse=False):
 
