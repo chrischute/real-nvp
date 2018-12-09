@@ -3,9 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.real_nvp.coupling import Coupling, MaskType
-from models.real_nvp.splitting import Splitting
-from models.real_nvp.squeezing import Squeezing
-from util import depth_to_space, space_to_depth
+from util import squeeze_2x2
 
 
 class RealNVP(nn.Module):
@@ -28,71 +26,26 @@ class RealNVP(nn.Module):
         # Register data_constraint to pre-process images, not learnable
         self.register_buffer('data_constraint', torch.tensor([0.9], dtype=torch.float32))
 
-        self.x_channels = in_channels
-        self.z_channels = 4 ** (num_scales - 1) * in_channels
-
-        # Get inner layers
-        layers = []
-        for scale in range(num_scales):
-            layers += [Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False),
-                       Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True),
-                       Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False)]
-
-            if scale < num_scales - 1:
-                in_channels *= 4   # Account for the squeeze
-                mid_channels *= 2  # When squeezing, double the number of hidden-layer features in s and t
-                layers += [Squeezing(),
-                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False),
-                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=True),
-                           Coupling(in_channels, mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False)]
-            else:
-                layers += [Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True)]
-
-            layers += [Splitting(scale)]
-            in_channels //= 2  # Account for the split
-
-        self.layers = nn.ModuleList(layers)
+        self.flows = _RealNVPBuilder(0, num_scales, in_channels, mid_channels, num_blocks)
 
     def forward(self, x, reverse=False):
         if reverse:
-            # Reshape z to match dimensions of final latent space
-            z = x
-            if z.size(2) != z.size(3):
-                raise ValueError('Expected z with height = width, got shape {}'.format(z.size()))
-            while z.size(1) < self.z_channels:
-                z = space_to_depth(z, 2)
-
-            # Apply inverse flows
-            y = None
-            for layer in reversed(self.layers):
-                y, z = layer.backward(y, z)
-
-            x = y
-
-            return x, None
+            # SLDJ not tracked in reverse mapping
+            sldj = None
         else:
             # Expect inputs in [0, 1]
             if x.min() < 0 or x.max() > 1:
                 raise ValueError('Expected x in [0, 1], got x with min/max {}/{}'
                                  .format(x.min(), x.max()))
 
-            # Dequantize and convert to logits
-            y, sldj = self.pre_process(x)
+            # De-quantize and convert to logits
+            x, sldj = self._pre_process(x)
 
-            # Apply forward flows
-            z = None
-            for layer in self.layers:
-                y, sldj, z = layer.forward(y, sldj, z)
+        x, sldj = self.flows(x, sldj, reverse)
 
-            z = torch.cat((z, y), dim=1)
+        return x, sldj
 
-            # Reshape z to match dimensions of input
-            while z.size(1) > self.x_channels:
-                z = depth_to_space(z, 2)
-
-            return z, sldj
-
-    def pre_process(self, x):
+    def _pre_process(self, x):
         """Dequantize the input image `x` and convert to logits.
 
         Args:
@@ -116,3 +69,80 @@ class RealNVP(nn.Module):
         sldj = ldj.view(ldj.size(0), -1).sum(-1)
 
         return y, sldj
+
+
+class _RealNVPBuilder(nn.Module):
+    """Recursive builder for a `RealNVP` model.
+
+    Each `_RealNVPBuilder` corresponds to a single scale in `RealNVP`,
+    and the constructor is recursively called to build a full `RealNVP` model.
+
+    Args:
+        scale_idx (int): Index of current scale.
+        num_scales (int): Number of scales in the RealNVP model.
+        in_channels (int): Number of channels in the input.
+        mid_channels (int): Number of channels in the intermediate layers.
+        num_blocks (int): Number of residual blocks in the s and t network of
+            `Coupling` layers.
+    """
+    def __init__(self, scale_idx, num_scales, in_channels, mid_channels, num_blocks):
+        super(_RealNVPBuilder, self).__init__()
+
+        self.mid_channels = mid_channels * 2 ** scale_idx
+        self.is_last_block = scale_idx == num_scales - 1
+
+        self.in_couplings = nn.ModuleList([
+            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False),
+            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True),
+            Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=False)
+        ])
+
+        if self.is_last_block:
+            self.out_coupling = Coupling(in_channels, mid_channels, num_blocks, MaskType.CHECKERBOARD, reverse_mask=True)
+        else:
+            self.out_couplings = nn.ModuleList([
+                Coupling(in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False),
+                Coupling(in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=True),
+                Coupling(in_channels, 2 * mid_channels, num_blocks, MaskType.CHANNEL_WISE, reverse_mask=False)
+            ])
+            self.next_block = _RealNVPBuilder(scale_idx + 1, num_scales, in_channels, mid_channels, num_blocks)
+
+    def forward(self, x, sldj, reverse=False):
+
+        if reverse:
+            if self.is_last_block:
+                x, sldj = self.out_coupling(x, sldj, reverse)
+            else:
+                # Re-squeeze -> split -> next block
+                x = squeeze_2x2(x, reverse=False, alt_order=True)
+                x, x_split = torch.split(x, 2, dim=1)
+                x, sldj = self.next_block(x, sldj, reverse)
+                x = torch.cat((x, x_split), dim=1)
+                x = squeeze_2x2(x, reverse=True, alt_order=True)
+
+                # Squeeze -> 3x coupling (channel-wise)
+                x = squeeze_2x2(x, reverse=False)
+                for coupling in reversed(self.out_couplings):
+                    x, sldj = coupling(x, sldj, reverse)
+                x = squeeze_2x2(x, reverse=True)
+        else:
+            for coupling in self.in_couplings:
+                x, sldj = coupling(x, sldj, reverse)
+
+            if self.is_last_block:
+                x, sldj = self.out_coupling(x, sldj, reverse)
+            else:
+                # Squeeze -> 3x coupling (channel-wise)
+                x = squeeze_2x2(x, reverse=False)
+                for coupling in self.out_couplings:
+                    x, sldj = coupling(x, sldj, reverse)
+                x = squeeze_2x2(x, reverse=True)
+
+                # Re-squeeze -> split -> next block
+                x = squeeze_2x2(x, reverse=False, alt_order=True)
+                x, x_split = torch.split(x, 2, dim=1)
+                x, sldj = self.next_block(x, sldj, reverse)
+                x = torch.cat((x, x_split), dim=1)
+                x = squeeze_2x2(x, reverse=True, alt_order=True)
+
+        return x, sldj

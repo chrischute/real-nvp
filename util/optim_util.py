@@ -2,14 +2,13 @@ import numpy as np
 import torch.nn.utils as utils
 
 
-def bits_per_dim(x, nll, k=256):
+def bits_per_dim(x, nll):
     """Get the bits per dimension implied by using model with `loss`
     for compressing `x`, assuming each entry can take on `k` discrete values.
 
     Args:
         x (torch.Tensor): Input to the model. Just used for dimensions.
         nll (torch.Tensor): Scalar negative log-likelihood loss tensor.
-        k (int): Number of possible values per entry.
 
     Returns:
         bpd (torch.Tensor): Bits per dimension implied if compressing `x`.

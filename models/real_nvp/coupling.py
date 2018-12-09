@@ -3,7 +3,6 @@ import torch.nn as nn
 
 from enum import IntEnum
 from models.resnet import ResNet
-from models.real_nvp.real_nvp_layer import RealNVPLayer
 from util import checkerboard_mask, channel_wise_mask
 
 
@@ -12,7 +11,7 @@ class MaskType(IntEnum):
     CHANNEL_WISE = 1
 
 
-class Coupling(RealNVPLayer):
+class Coupling(nn.Module):
     """Coupling layer in RealNVP.
 
     Args:
@@ -36,17 +35,7 @@ class Coupling(RealNVPLayer):
         # Learnable scale for s
         self.scale = nn.utils.weight_norm(Scalar())
 
-    def forward(self, x, sldj, z):
-        y, sldj = self._flow(x, sldj, reverse=False)
-
-        return y, sldj, z
-
-    def backward(self, y, z):
-        x, _ = self._flow(y, reverse=True)
-
-        return x, z
-
-    def _flow(self, x, sldj=None, reverse=True):
+    def forward(self, x, sldj=None, reverse=True):
         # Get scale and translate factors
         b = self._get_mask(x)
         x_b = x * b

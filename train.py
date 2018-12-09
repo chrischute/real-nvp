@@ -106,7 +106,7 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
         with tqdm(total=len(testloader.dataset)) as progress_bar:
             for x, _ in testloader:
                 x = x.to(device)
-                z, sldj = net(x)
+                z, sldj = net(x, reverse=False)
                 loss = loss_fn(z, sldj)
                 loss_meter.update(loss.item(), x.size(0))
                 progress_bar.set_postfix(loss=loss_meter.avg,
