@@ -106,7 +106,6 @@ class _RealNVP(nn.Module):
             self.next_block = _RealNVP(scale_idx + 1, num_scales, 2 * in_channels, 2 * mid_channels, num_blocks)
 
     def forward(self, x, sldj, reverse=False):
-
         if reverse:
             if not self.is_last_block:
                 # Re-squeeze -> split -> next block

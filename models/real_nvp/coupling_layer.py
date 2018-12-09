@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from enum import IntEnum
 from models.resnet import ResNet
-from util import BatchNormStats2d, checkerboard_mask
+from util import checkerboard_mask
 
 
 class MaskType(IntEnum):
@@ -37,10 +37,6 @@ class CouplingLayer(nn.Module):
         # Learnable scale for s
         self.scale = nn.utils.weight_norm(Scalar())
 
-        # Out batch norm
-        self.norm = BatchNormStats2d(in_channels)
-        self.use_norm = True
-
     def forward(self, x, sldj=None, reverse=True):
         if self.mask_type == MaskType.CHECKERBOARD:
             # Checkerboard mask
@@ -54,11 +50,6 @@ class CouplingLayer(nn.Module):
 
             # Scale and translate
             if reverse:
-                if self.use_norm:
-                    m, v = self.norm(x * (1 - b), training=False)
-                    log_v = v.log()
-                    x = x * (.5 * log_v * (1 - b)).exp() + m * (1 - b)
-
                 inv_exp_s = s.mul(-1).exp()
                 if torch.isnan(inv_exp_s).any():
                     raise RuntimeError('Scale factor has NaN entries')
@@ -71,12 +62,6 @@ class CouplingLayer(nn.Module):
 
                 # Add log-determinant of the Jacobian
                 sldj += s.view(s.size(0), -1).sum(-1)
-
-                if self.use_norm:
-                    m, v = self.norm(x * (1 - b), self.training)
-                    log_v = v.log()
-                    x = (x - m * (1 - b)) * (-.5 * log_v * (1 - b)).exp()
-                    sldj -= (.5 * log_v * (1 - b)).view(log_v.size(0), -1).sum(-1)
         else:
             # Channel-wise mask
             if self.reverse_mask:
@@ -90,11 +75,6 @@ class CouplingLayer(nn.Module):
 
             # Scale and translate
             if reverse:
-                if self.use_norm:
-                    m, v = self.norm(x_change, training=False)
-                    log_v = v.log()
-                    x_change = x_change * (.5 * log_v).exp() + m
-
                 inv_exp_s = s.mul(-1).exp()
                 if torch.isnan(inv_exp_s).any():
                     raise RuntimeError('Scale factor has NaN entries')
@@ -107,12 +87,6 @@ class CouplingLayer(nn.Module):
 
                 # Add log-determinant of the Jacobian
                 sldj += s.view(s.size(0), -1).sum(-1)
-
-                if self.use_norm:
-                    m, v = self.norm(x_change, self.training)
-                    log_v = v.log()
-                    x_change = (x_change - m) * (-.5 * log_v).exp()
-                    sldj -= (.5 * log_v).view(log_v.size(0), -1).sum(-1)
 
             if self.reverse_mask:
                 x = torch.cat((x_id, x_change), dim=1)
