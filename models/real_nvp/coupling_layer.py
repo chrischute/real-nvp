@@ -32,7 +32,8 @@ class CouplingLayer(nn.Module):
         if self.mask_type == MaskType.CHANNEL_WISE:
             in_channels //= 2
         self.st_net = ResNet(in_channels, mid_channels, 2 * in_channels,
-                             num_blocks=num_blocks, kernel_size=3, padding=1)
+                             num_blocks=num_blocks, kernel_size=3, padding=1,
+                             double_after_norm=(self.mask_type == MaskType.CHECKERBOARD))
 
         # Learnable scale for s
         self.scale = nn.utils.weight_norm(Scalar())
