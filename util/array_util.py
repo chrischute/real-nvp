@@ -6,14 +6,15 @@ def squeeze_2x2(x, reverse=False, alt_order=False):
     """For each spatial position, a sub-volume of shape `1x1x(N^2 * C)`,
     reshape into a sub-volume of shape `NxNxC`, where `N = block_size`.
 
-    Adapted from: https://gist.github.com/jalola/f41278bb27447bed9cd3fb48ec142aec
+    Adapted from:
+        https://github.com/tensorflow/models/blob/master/research/real_nvp/real_nvp_utils.py
 
     See Also:
         - TensorFlow nn.depth_to_space: https://www.tensorflow.org/api_docs/python/tf/nn/depth_to_space
         - Figure 3 of RealNVP paper: https://arxiv.org/abs/1605.08803
 
     Args:
-        x (tensor): Input tensor of shape (B, C, H, W).
+        x (torch.Tensor): Input tensor of shape (B, C, H, W).
         reverse (bool): Whether to do a reverse squeeze (unsqueeze).
         alt_order (bool): Whether to use alternate ordering.
     """
@@ -49,35 +50,29 @@ def squeeze_2x2(x, reverse=False, alt_order=False):
         perm_weight = perm_weight[shuffle_channels, :, :, :]
 
         if reverse:
-            output = F.conv_transpose2d(x, perm_weight, stride=2)
+            x = F.conv_transpose2d(x, perm_weight, stride=2)
         else:
-            output = F.conv2d(x, perm_weight, stride=2)
-    elif reverse:
-        output = x.permute(0, 2, 3, 1)
-        (batch_size, s_height, s_width, s_depth) = output.size()
-        d_depth = s_depth * block_size ** 2
-        d_height = int(s_height / block_size)
-        t_1 = output.split(block_size, 2)
-        stack = [t_t.reshape(batch_size, d_height, d_depth) for t_t in t_1]
-        output = torch.stack(stack, 1)
-        output = output.permute(0, 2, 1, 3)
-        output = output.permute(0, 3, 1, 2)
+            x = F.conv2d(x, perm_weight, stride=2)
     else:
-        output = x.permute(0, 2, 3, 1)
-        (batch_size, d_height, d_width, d_depth) = output.size()
-        s_depth = int(d_depth / block_size ** 2)
-        s_width = int(d_width * block_size)
-        s_height = int(d_height * block_size)
-        t_1 = output.reshape(batch_size, d_height, d_width, block_size ** 2, s_depth)
-        spl = t_1.split(block_size, 3)
-        stack = [t_t.reshape(batch_size, d_height, s_width, s_depth) for t_t in spl]
-        output = torch.stack(stack, 0)
-        output = output.transpose(0, 1)
-        output = output.permute(0, 2, 1, 3, 4)
-        output = output.reshape(batch_size, s_height, s_width, s_depth)
-        output = output.permute(0, 3, 1, 2)
+        b, c, h, w = x.size()
+        x = x.permute(0, 2, 3, 1)
 
-    return output
+        if reverse:
+            if c % 4 != 0:
+                raise ValueError('Number of channels {} is not divisible by 4'.format(c))
+            x = x.view(b, h, w, c // 4, 2, 2)
+            x = x.permute(0, 1, 4, 2, 5, 3)
+            x = x.contiguous().view(b, 2 * h, 2 * w, c // 4)
+        else:
+            if h % 2 != 0 or w % 2 != 0:
+                raise ValueError('Expected even spatial dims HxW, got {}x{}'.format(h, w))
+            x = x.view(b, h // 2, 2, w // 2, 2, c)
+            x = x.permute(0, 1, 3, 5, 2, 4)
+            x = x.contiguous().view(b, h // 2, w // 2, c * 4)
+
+        x = x.permute(0, 3, 1, 2)
+
+    return x
 
 
 def checkerboard_mask(height, width, reverse=False, dtype=torch.float32,
