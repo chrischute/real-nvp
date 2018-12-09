@@ -1,6 +1,6 @@
 import functools
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 def get_norm_layer(norm_type='instance'):
@@ -61,3 +61,43 @@ class WNConv2d(nn.Module):
         x = self.conv(x)
 
         return x
+
+
+class BatchNormStats2d(nn.Module):
+    """Compute BatchNorm2d normalization statistics: `mean` and `var`.
+    Useful for keeping track of sum of log-determinant of Jacobians in flow models.
+    Args:
+        num_features (int): Number of features in the input (i.e., `C` in `(N, C, H, W)`).
+        eps (float): Added to the denominator for numerical stability.
+        decay (float): The value used for the running_mean and running_var computation.
+            Different from conventional momentum, see `nn.BatchNorm2d` for more.
+    """
+    def __init__(self, num_features, eps=1e-5, decay=0.1):
+        super(BatchNormStats2d, self).__init__()
+        self.eps = eps
+
+        self.register_buffer('running_mean', torch.zeros(num_features))
+        self.register_buffer('running_var', torch.ones(num_features))
+        self.decay = decay
+
+    def forward(self, x, training):
+        # Get mean and variance per channel
+        if training:
+            channels = x.transpose(0, 1).contiguous().view(x.size(1), -1)
+            used_mean, used_var = channels.mean(-1), channels.var(-1)
+            curr_mean, curr_var = used_mean, used_var
+
+            # Update variables
+            self.running_mean = self.running_mean - self.decay * (self.running_mean - curr_mean)
+            self.running_var = self.running_var - self.decay * (self.running_var - curr_var)
+        else:
+            used_mean = self.running_mean
+            used_var = self.running_var
+
+        used_var += self.eps
+
+        # Reshape to (N, C, H, W)
+        used_mean = used_mean.view(1, x.size(1), 1, 1).expand_as(x)
+        used_var = used_var.view(1, x.size(1), 1, 1).expand_as(x)
+
+        return used_mean, used_var

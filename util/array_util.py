@@ -103,32 +103,3 @@ def checkerboard_mask(height, width, reverse=False, dtype=torch.float32,
     mask = mask.view(1, 1, height, width)
 
     return mask
-
-
-def channel_wise_mask(num_channels, reverse=False, dtype=torch.float32,
-                      device=None, requires_grad=False):
-    """Get a channel-wise mask. In non-reversed mask, first N/2 channels are 0,
-    and last N/2 channels are 1.
-
-    Args:
-        num_channels (int): Number of channels in the mask.
-        reverse (bool): If True, reverse the mask (i.e., make first N/2 channels 1).
-            Useful for alternating masks in RealNVP.
-        dtype (torch.dtype): Data type of the tensor.
-        device (torch.device): Device on which to construct the tensor.
-        requires_grad (bool): Whether the tensor requires gradient.
-
-    Returns:
-        mask (torch.tensor): channel-wise mask of shape (1, num_channels, 1, 1).
-    """
-    half_channels = num_channels // 2
-    channel_wise = [int(i < half_channels) for i in range(num_channels)]
-    mask = torch.tensor(channel_wise, dtype=dtype, device=device, requires_grad=requires_grad)
-
-    if reverse:
-        mask = 1 - mask
-
-    # Reshape to (1, num_channels, 1, 1) for broadcasting with tensors of shape (B, C, H, W)
-    mask = mask.view(1, num_channels, 1, 1)
-
-    return mask
