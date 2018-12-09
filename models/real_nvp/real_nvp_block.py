@@ -43,27 +43,39 @@ class RealNVPBlock(nn.Module):
     def forward(self, x, sldj, reverse=False):
 
         if reverse:
-            for coupling in reversed(self.out_couplings):
-                x, sldj = coupling(x, sldj, reverse)
-
-            # TODO: STOPPED HERE
-        else:
-            for coupling in self.in_couplings:
-                x, sldj = coupling(x, sldj)
-
             if self.is_last_block:
-                x, sldj = self.out_coupling(x, sldj)
+                x, sldj = self.out_coupling(x, sldj, reverse)
             else:
-                # Squeeze, 3x channel-wise coupling, unsqueeze
-                x = squeeze_2x2(x, reverse=False)
-                for coupling in self.out_couplings:
-                    x, sldj = coupling(x, sldj)
-                x = squeeze_2x2(x, reverse=True)
-
-                # Ordered squeeze, next block, ordered unsqueeze
+                # Re-squeeze -> split -> next block
                 x = squeeze_2x2(x, reverse=False, alt_order=True)
                 x, x_split = torch.split(x, 2, dim=1)
                 x, sldj = self.next_block(x, sldj, reverse)
-                x = torch.cat(x, x_split, dim=1)
+                x = torch.cat((x, x_split), dim=1)
+                x = squeeze_2x2(x, reverse=True, alt_order=True)
+
+                # Squeeze -> 3x coupling (channel-wise)
+                x = squeeze_2x2(x, reverse=False)
+                for coupling in reversed(self.out_couplings):
+                    x, sldj = coupling(x, sldj, reverse)
+                x = squeeze_2x2(x, reverse=True)
+        else:
+            for coupling in self.in_couplings:
+                x, sldj = coupling(x, sldj, reverse)
+
+            if self.is_last_block:
+                x, sldj = self.out_coupling(x, sldj, reverse)
+            else:
+                # Squeeze -> 3x coupling (channel-wise)
+                x = squeeze_2x2(x, reverse=False)
+                for coupling in self.out_couplings:
+                    x, sldj = coupling(x, sldj, reverse)
+                x = squeeze_2x2(x, reverse=True)
+
+                # Re-squeeze -> split -> next block
+                x = squeeze_2x2(x, reverse=False, alt_order=True)
+                x, x_split = torch.split(x, 2, dim=1)
+                x, sldj = self.next_block(x, sldj, reverse)
+                x = torch.cat((x, x_split), dim=1)
+                x = squeeze_2x2(x, reverse=True, alt_order=True)
 
         return x, sldj
