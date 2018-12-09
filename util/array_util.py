@@ -1,7 +1,8 @@
 import torch
+import torch.nn.functional as F
 
 
-def depth_to_space(x, block_size):
+def squeeze_2x2(x, reverse=False, alt_order=False):
     """For each spatial position, a sub-volume of shape `1x1x(N^2 * C)`,
     reshape into a sub-volume of shape `NxNxC`, where `N = block_size`.
 
@@ -13,47 +14,69 @@ def depth_to_space(x, block_size):
 
     Args:
         x (tensor): Input tensor of shape (B, C, H, W).
-        block_size (int): Side length of each spatial block.
+        reverse (bool): Whether to do a reverse squeeze (unsqueeze).
+        alt_order (bool): Whether to use alternate ordering.
     """
-    output = x.permute(0, 2, 3, 1)
-    (batch_size, d_height, d_width, d_depth) = output.size()
-    s_depth = int(d_depth / block_size ** 2)
-    s_width = int(d_width * block_size)
-    s_height = int(d_height * block_size)
-    t_1 = output.reshape(batch_size, d_height, d_width, block_size ** 2, s_depth)
-    spl = t_1.split(block_size, 3)
-    stack = [t_t.reshape(batch_size, d_height, s_width, s_depth) for t_t in spl]
-    output = torch.stack(stack, 0)
-    output = output.transpose(0, 1)
-    output = output.permute(0, 2, 1, 3, 4)
-    output = output.reshape(batch_size, s_height, s_width, s_depth)
-    output = output.permute(0, 3, 1, 2)
-    return output
+    block_size = 2
+    if alt_order:
+        n, c, h, w = x.size()
 
+        if reverse:
+            if c % 4 != 0:
+                raise ValueError('Number of channels must be divisible by 4, got {}.'.format(c))
+            c //= 4
+        else:
+            if h % 2 != 0:
+                raise ValueError('Height must be divisible by 2, got {}.'.format(h))
+            if w % 2 != 0:
+                raise ValueError('Width must be divisible by 4, got {}.'.format(w))
+        # Defines permutation of input channels (shape is (4, 1, 2, 2)).
+        squeeze_matrix = torch.tensor([[[[1., 0.], [0., 0.]]],
+                                       [[[0., 0.], [0., 1.]]],
+                                       [[[0., 1.], [0., 0.]]],
+                                       [[[0., 0.], [1., 0.]]]],
+                                      dtype=x.dtype,
+                                      device=x.device)
+        perm_weight = torch.zeros((4 * c, c, 2, 2), dtype=x.dtype, device=x.device)
+        for c_idx in range(c):
+            slice_0 = slice(c_idx * 4, (c_idx + 1) * 4)
+            slice_1 = slice(c_idx, c_idx + 1)
+            perm_weight[slice_0, slice_1, :, :] = squeeze_matrix
+        shuffle_channels = torch.tensor([c_idx * 4 for c_idx in range(c)]
+                                        + [c_idx * 4 + 1 for c_idx in range(c)]
+                                        + [c_idx * 4 + 2 for c_idx in range(c)]
+                                        + [c_idx * 4 + 3 for c_idx in range(c)])
+        perm_weight = perm_weight[shuffle_channels, :, :, :]
 
-def space_to_depth(x, block_size):
-    """For each channel, divide the input into sub-squares of shape `NxNxC`,
-    then reshape them into sub-squares of shape `1x1x(N^2 * C)`, where `N = block_size`.
+        if reverse:
+            output = F.conv_transpose2d(x, perm_weight, stride=2)
+        else:
+            output = F.conv2d(x, perm_weight, stride=2)
+    elif reverse:
+        output = x.permute(0, 2, 3, 1)
+        (batch_size, s_height, s_width, s_depth) = output.size()
+        d_depth = s_depth * block_size ** 2
+        d_height = int(s_height / block_size)
+        t_1 = output.split(block_size, 2)
+        stack = [t_t.reshape(batch_size, d_height, d_depth) for t_t in t_1]
+        output = torch.stack(stack, 1)
+        output = output.permute(0, 2, 1, 3)
+        output = output.permute(0, 3, 1, 2)
+    else:
+        output = x.permute(0, 2, 3, 1)
+        (batch_size, d_height, d_width, d_depth) = output.size()
+        s_depth = int(d_depth / block_size ** 2)
+        s_width = int(d_width * block_size)
+        s_height = int(d_height * block_size)
+        t_1 = output.reshape(batch_size, d_height, d_width, block_size ** 2, s_depth)
+        spl = t_1.split(block_size, 3)
+        stack = [t_t.reshape(batch_size, d_height, s_width, s_depth) for t_t in spl]
+        output = torch.stack(stack, 0)
+        output = output.transpose(0, 1)
+        output = output.permute(0, 2, 1, 3, 4)
+        output = output.reshape(batch_size, s_height, s_width, s_depth)
+        output = output.permute(0, 3, 1, 2)
 
-    Adapted from: https://gist.github.com/jalola/f41278bb27447bed9cd3fb48ec142aec
-
-    See Also:
-        - TensorFlow nn.space_to_depth: https://www.tensorflow.org/api_docs/python/tf/nn/space_to_depth
-        - Figure 3 of RealNVP paper: https://arxiv.org/abs/1605.08803
-
-    Args:
-        x (tensor): Input tensor of shape (B, C, H, W).
-        block_size (int): Size of each spatial block.
-    """
-    output = x.permute(0, 2, 3, 1)
-    (batch_size, s_height, s_width, s_depth) = output.size()
-    d_depth = s_depth * block_size ** 2
-    d_height = int(s_height / block_size)
-    t_1 = output.split(block_size, 2)
-    stack = [t_t.reshape(batch_size, d_height, d_depth) for t_t in t_1]
-    output = torch.stack(stack, 1)
-    output = output.permute(0, 2, 1, 3)
-    output = output.permute(0, 3, 1, 2)
     return output
 
 
