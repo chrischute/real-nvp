@@ -36,7 +36,7 @@ class CouplingLayer(nn.Module):
                              double_after_norm=(self.mask_type == MaskType.CHECKERBOARD))
 
         # Learnable scale for s
-        self.scale = nn.utils.weight_norm(Scalar())
+        self.rescale = nn.utils.weight_norm(Rescale(in_channels))
 
     def forward(self, x, sldj=None, reverse=True):
         if self.mask_type == MaskType.CHECKERBOARD:
@@ -45,7 +45,7 @@ class CouplingLayer(nn.Module):
             x_b = x * b
             st = self.st_net(x_b)
             s, t = st.chunk(2, dim=1)
-            s = self.scale(torch.tanh(s))
+            s = self.rescale(torch.tanh(s))
             s = s * (1 - b)
             t = t * (1 - b)
 
@@ -72,7 +72,7 @@ class CouplingLayer(nn.Module):
 
             st = self.st_net(x_id)
             s, t = st.chunk(2, dim=1)
-            s = self.scale(torch.tanh(s))
+            s = self.rescale(torch.tanh(s))
 
             # Scale and translate
             if reverse:
@@ -97,11 +97,16 @@ class CouplingLayer(nn.Module):
         return x, sldj
 
 
-class Scalar(nn.Module):
-    """Scalar that can be wrapped with `torch.nn.utils.weight_norm`."""
-    def __init__(self):
-        super(Scalar, self).__init__()
-        self.weight = nn.Parameter(torch.randn(1))
+class Rescale(nn.Module):
+    """Per-channel rescaling. Need a proper `nn.Module` so we can wrap it
+    with `torch.nn.utils.weight_norm`.
+
+    Args:
+        num_channels (int): Number of channels in the input.
+    """
+    def __init__(self, num_channels):
+        super(Rescale, self).__init__()
+        self.weight = nn.Parameter(torch.ones(num_channels, 1, 1))
 
     def forward(self, x):
         x = self.weight * x

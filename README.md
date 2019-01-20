@@ -1,10 +1,14 @@
 ## Real NVP in PyTorch
 
-Implementation of Real NVP in PyTorch. Based on the paper: [Density estimation using Real NVP](https://arxiv.org/abs/1605.08803)
-by Laurent Dinh, Jascha Sohl-Dickstein, and Samy Bengio.
+Implementation of Real NVP in PyTorch. Based on the paper:
 
-Model architecture and hyperparameters chosen to match the CIFAR-10
-experiments described in Section 4.1 of the paper.
+  > [Density estimation using Real NVP](https://arxiv.org/abs/1605.08803)\
+  > Laurent Dinh, Jascha Sohl-Dickstein, Samy Bengio\
+  > _arXiv:1605.08803_
+
+Training script and hyperparameters designed to match the
+CIFAR-10 experiments described in Section 4.1 of the paper.
+
 
 ## Usage
 
